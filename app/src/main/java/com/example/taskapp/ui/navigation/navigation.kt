@@ -2,18 +2,23 @@ package com.example.taskapp.ui.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.*
 import com.example.taskapp.ui.screens.CalendarScreen
+import com.example.taskapp.ui.screens.FinancesScreen
 import com.example.taskapp.ui.screens.ScheduleScreen
+import com.example.taskapp.ui.screens.SettingsScreen
 import com.example.taskapp.ui.screens.StatsScreen
 import com.example.taskapp.ui.screens.TasksScreen
 import com.example.taskapp.ui.viewmodel.TaskViewModel
@@ -30,8 +35,10 @@ fun MainAppNavigation(viewModel: TaskViewModel) {
     val topBarTitle = when (currentRoute) {
         "tasks" -> "Agenda - Mis Tareas"
         "calendar" -> "Agenda - Calendario"
-        "stats" -> "Agenda - Estadísticas"
         "schedule" -> "Agenda - Horario Personal"
+        "finances" -> "Agenda - Control de Finanzas"
+        "stats" -> "Agenda - Estadísticas y Gráficas"
+        "settings" -> "Agenda - Ajustes y Temas"
         else -> "Agenda"
     }
 
@@ -39,12 +46,34 @@ fun MainAppNavigation(viewModel: TaskViewModel) {
         topBar = {
             TopAppBar(
                 title = { Text(topBarTitle) },
+                navigationIcon = {
+                    if (currentRoute == "settings") {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Volver"
+                            )
+                        }
+                    }
+                },
                 actions = {
                     IconButton(onClick = { viewModel.toggleTheme() }) {
                         Icon(
                             imageVector = if (isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
                             contentDescription = "Cambiar modo Claro/Oscuro"
                         )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            if (currentRoute == "settings") {
+                                navController.popBackStack()
+                            } else {
+                                navController.navigate("settings")
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Default.Settings, contentDescription = "Ajustes")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -80,11 +109,11 @@ fun MainAppNavigation(viewModel: TaskViewModel) {
                     }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Gráficas") },
-                    label = { Text("Gráficas") },
-                    selected = currentRoute == "stats",
+                    icon = { Icon(Icons.Default.Schedule, contentDescription = "Horario") },
+                    label = { Text("Horario") },
+                    selected = currentRoute == "schedule",
                     onClick = {
-                        navController.navigate("stats") {
+                        navController.navigate("schedule") {
                             popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
@@ -92,11 +121,23 @@ fun MainAppNavigation(viewModel: TaskViewModel) {
                     }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Schedule, contentDescription = "Horario") },
-                    label = { Text("Horario") },
-                    selected = currentRoute == "schedule",
+                    icon = { Icon(Icons.Default.MonetizationOn, contentDescription = "Finanzas") },
+                    label = { Text("Finanzas") },
+                    selected = currentRoute == "finances",
                     onClick = {
-                        navController.navigate("schedule") {
+                        navController.navigate("finances") {
+                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Gráficas") },
+                    label = { Text("Gráficas") },
+                    selected = currentRoute == "stats",
+                    onClick = {
+                        navController.navigate("stats") {
                             popUpTo(navController.graph.startDestinationId) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
@@ -113,8 +154,10 @@ fun MainAppNavigation(viewModel: TaskViewModel) {
         ) {
             composable("tasks") { TasksScreen(viewModel = viewModel) }
             composable("calendar") { CalendarScreen(viewModel = viewModel) }
-            composable("stats") { StatsScreen(viewModel = viewModel) }
             composable("schedule") { ScheduleScreen(viewModel = viewModel) }
+            composable("finances") { FinancesScreen(viewModel = viewModel) }
+            composable("stats") { StatsScreen(viewModel = viewModel) }
+            composable("settings") { SettingsScreen(viewModel = viewModel) }
         }
     }
 }

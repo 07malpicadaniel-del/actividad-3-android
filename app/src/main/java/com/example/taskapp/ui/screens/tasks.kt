@@ -1,5 +1,6 @@
 package com.example.taskapp.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -7,10 +8,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.LocalFireDepartment
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,8 +39,14 @@ fun TasksScreen(viewModel: TaskViewModel) {
     val selectedCategory by viewModel.selectedCategory.collectAsState()
     val selectedFilterStatus by viewModel.selectedFilterStatus.collectAsState()
 
+    val allHabits by viewModel.allHabits.collectAsState()
+    val allHabitLogs by viewModel.allHabitLogs.collectAsState()
+
     var showDialog by remember { mutableStateOf(false) }
+    var showHabitDialog by remember { mutableStateOf(false) }
     var taskToEdit by remember { mutableStateOf<Task?>(null) }
+
+    val todayStartMillis = remember { TaskViewModel.getStartOfDay(System.currentTimeMillis()) }
 
     Scaffold(
         floatingActionButton = {
@@ -55,11 +65,71 @@ fun TasksScreen(viewModel: TaskViewModel) {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Search Bar & Clear Completed Button
+            // Habit Tracker Header Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = Color(0xFFFF6D00))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Hábitos Diarios y Rachas", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                }
+
+                IconButton(onClick = { showHabitDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = "Agregar Hábito")
+                }
+            }
+
+            // Habit Tracker Chips Row
+            if (allHabits.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(allHabits, key = { it.id }) { habit ->
+                        val isCompletedToday = allHabitLogs.any { it.habitId == habit.id && TaskViewModel.getStartOfDay(it.dateMillis) == todayStartMillis }
+                        val streak = viewModel.getHabitStreak(habit.id, allHabitLogs)
+
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (isCompletedToday) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.clickable {
+                                viewModel.toggleHabitForDate(habit.id, todayStartMillis, isCompletedToday)
+                            }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isCompletedToday) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                                    contentDescription = null,
+                                    tint = if (isCompletedToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(habit.title, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(Icons.Default.LocalFireDepartment, contentDescription = null, tint = Color(0xFFFF6D00), modifier = Modifier.size(14.dp))
+                                Text("$streak", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFF6D00))
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+
+            // Search Bar & Clear Completed Button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedTextField(
@@ -94,7 +164,7 @@ fun TasksScreen(viewModel: TaskViewModel) {
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(FilterStatus.entries.toTypedArray()) { status ->
@@ -110,7 +180,7 @@ fun TasksScreen(viewModel: TaskViewModel) {
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(TaskViewModel.categories) { category ->
@@ -162,6 +232,16 @@ fun TasksScreen(viewModel: TaskViewModel) {
         }
     }
 
+    if (showHabitDialog) {
+        AddHabitDialog(
+            onDismiss = { showHabitDialog = false },
+            onConfirm = { title, category ->
+                viewModel.addHabit(title, category)
+                showHabitDialog = false
+            }
+        )
+    }
+
     if (showDialog) {
         TaskDialog(
             task = taskToEdit,
@@ -184,6 +264,44 @@ fun TasksScreen(viewModel: TaskViewModel) {
             }
         )
     }
+}
+
+@Composable
+fun AddHabitDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (title: String, category: String) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("Salud") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Nuevo Hábito Diario") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Nombre (ej. Tomar 2L agua, Leer 15m)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(title, category) },
+                enabled = title.isNotBlank()
+            ) {
+                Text("Guardar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
 }
 
 @Composable

@@ -15,6 +15,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Mood
 import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,8 +39,10 @@ fun CalendarScreen(viewModel: TaskViewModel) {
     val selectedDateMillis by viewModel.selectedDateMillis.collectAsState()
     val tasksForDate by viewModel.tasksForSelectedDate.collectAsState()
     val tasksGroupedByDate by viewModel.tasksGroupedByDate.collectAsState()
+    val currentDailyNote by viewModel.currentDailyNote.collectAsState()
 
     var showDialog by remember { mutableStateOf(false) }
+    var showNoteDialog by remember { mutableStateOf(false) }
     var taskToEdit by remember { mutableStateOf<Task?>(null) }
 
     // Calendar navigation state (current displayed month)
@@ -120,6 +124,62 @@ fun CalendarScreen(viewModel: TaskViewModel) {
 
             Spacer(modifier = Modifier.height(4.dp))
 
+            // Daily Mood & Journal Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Mood, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Diario del Día",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text(
+                                        text = currentDailyNote?.moodEmoji ?: "Excelente",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (!currentDailyNote?.noteText.isNull_or_blank()) currentDailyNote!!.noteText else "Sin nota para este día. Presiona editar para escribir.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
+                        }
+                    }
+
+                    IconButton(onClick = { showNoteDialog = true }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Editar Nota y Estado de Ánimo")
+                    }
+                }
+            }
+
             // Summary Header for Selected Date
             Surface(
                 modifier = Modifier.fillMaxWidth(),
@@ -187,6 +247,18 @@ fun CalendarScreen(viewModel: TaskViewModel) {
         }
     }
 
+    if (showNoteDialog) {
+        DailyNoteDialog(
+            initialMood = currentDailyNote?.moodEmoji ?: "Excelente",
+            initialText = currentDailyNote?.noteText ?: "",
+            onDismiss = { showNoteDialog = false },
+            onConfirm = { mood, text ->
+                viewModel.saveDailyNote(mood, text)
+                showNoteDialog = false
+            }
+        )
+    }
+
     if (showDialog) {
         TaskDialog(
             task = taskToEdit,
@@ -210,6 +282,66 @@ fun CalendarScreen(viewModel: TaskViewModel) {
             }
         )
     }
+}
+
+private fun String?.isNull_or_blank(): Boolean {
+    return this == null || this.isBlank()
+}
+
+@Composable
+fun DailyNoteDialog(
+    initialMood: String,
+    initialText: String,
+    onDismiss: () -> Unit,
+    onConfirm: (moodEmoji: String, text: String) -> Unit
+) {
+    var selectedMood by remember { mutableStateOf(initialMood) }
+    var noteText by remember { mutableStateOf(initialText) }
+
+    val moodOptions = listOf("Excelente", "Bueno", "Normal", "Cansado")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Diario de Ánimo y Reflexión") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("¿Cómo estuvo tu día?", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    moodOptions.forEach { mood ->
+                        FilterChip(
+                            selected = selectedMood == mood,
+                            onClick = { selectedMood = mood },
+                            label = { Text(mood) }
+                        )
+                    }
+                }
+
+                OutlinedTextField(
+                    value = noteText,
+                    onValueChange = { noteText = it },
+                    label = { Text("Nota o Reflexión del día") },
+                    maxLines = 4,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(selectedMood, noteText) }) {
+                Text("Guardar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
 }
 
 @Composable

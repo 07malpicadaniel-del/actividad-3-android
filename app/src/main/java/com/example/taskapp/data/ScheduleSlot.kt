@@ -12,5 +12,6 @@ data class ScheduleSlot(
     val endTime: String, // e.g., "09:30"
     val title: String,
     val category: String = "General",
-    val colorHex: String = "#2196F3"
+    val colorHex: String = "#2196F3",
+    val isCompleted: Boolean = false
 )

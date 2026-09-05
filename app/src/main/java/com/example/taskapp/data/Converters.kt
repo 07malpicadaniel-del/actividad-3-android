@@ -12,4 +12,14 @@ class Converters {
     } catch (e: Exception) {
         Priority.MEDIUM
     }
+
+    @TypeConverter
+    fun fromTransactionType(type: TransactionType): String = type.name
+
+    @TypeConverter
+    fun toTransactionType(value: String): TransactionType = try {
+        TransactionType.valueOf(value)
+    } catch (e: Exception) {
+        TransactionType.EXPENSE
+    }
 }

@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Schedule
@@ -19,9 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.taskapp.data.ScheduleSlot
+import com.example.taskapp.ui.viewmodel.RoutineType
 import com.example.taskapp.ui.viewmodel.TaskViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -31,6 +34,7 @@ fun ScheduleScreen(viewModel: TaskViewModel) {
     val scheduleSlots by viewModel.scheduleSlotsForSelectedDay.collectAsState()
 
     var showDialog by remember { mutableStateOf(false) }
+    var showRoutineDialog by remember { mutableStateOf(false) }
     var slotToEdit by remember { mutableStateOf<ScheduleSlot?>(null) }
 
     val daysOfWeek = listOf(
@@ -43,15 +47,27 @@ fun ScheduleScreen(viewModel: TaskViewModel) {
         Pair(7, "Domingo")
     )
 
+    val completedCount = scheduleSlots.count { it.isCompleted }
+    val totalCount = scheduleSlots.size
+
     Scaffold(
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    slotToEdit = null
-                    showDialog = true
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SmallFloatingActionButton(
+                    onClick = { showRoutineDialog = true },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = "Cargar Rutina Predeterminada")
                 }
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "Agregar Bloque de Horario")
+
+                FloatingActionButton(
+                    onClick = {
+                        slotToEdit = null
+                        showDialog = true
+                    }
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Agregar Bloque de Horario")
+                }
             }
         }
     ) { innerPadding ->
@@ -61,7 +77,7 @@ fun ScheduleScreen(viewModel: TaskViewModel) {
                 .padding(innerPadding)
         ) {
             // Day Selector Tabs
-            ScrollableTabRow(
+            PrimaryScrollableTabRow(
                 selectedTabIndex = selectedDay - 1,
                 edgePadding = 16.dp,
                 modifier = Modifier.fillMaxWidth()
@@ -75,7 +91,27 @@ fun ScheduleScreen(viewModel: TaskViewModel) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // Quick Preset Routine Banner Button & Daily Completion Summary
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Actividades del Día", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    if (totalCount > 0) {
+                        Text("$completedCount de $totalCount cumplidos", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                OutlinedButton(onClick = { showRoutineDialog = true }) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Cargar Rutina", fontSize = 12.sp)
+                }
+            }
 
             // Time Slots List
             Box(modifier = Modifier.weight(1f)) {
@@ -93,9 +129,10 @@ fun ScheduleScreen(viewModel: TaskViewModel) {
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Sin actividades en el horario para este día.\nPresiona + para organizar tu tiempo.",
+                                text = "Sin actividades en el horario para este día.\nPresiona 'Cargar Rutina' o + para organizar tu tiempo.",
                                 fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Medium
                             )
                         }
                     }
@@ -103,12 +140,13 @@ fun ScheduleScreen(viewModel: TaskViewModel) {
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(scheduleSlots, key = { it.id }) { slot ->
                             ScheduleSlotCard(
                                 slot = slot,
+                                onToggleComplete = { viewModel.toggleScheduleSlotCompleted(slot) },
                                 onEdit = {
                                     slotToEdit = slot
                                     showDialog = true
@@ -120,6 +158,16 @@ fun ScheduleScreen(viewModel: TaskViewModel) {
                 }
             }
         }
+    }
+
+    if (showRoutineDialog) {
+        RoutinePresetDialog(
+            onDismiss = { showRoutineDialog = false },
+            onSelectRoutine = { routineType ->
+                viewModel.applyPredefinedRoutine(selectedDay, routineType)
+                showRoutineDialog = false
+            }
+        )
     }
 
     if (showDialog) {
@@ -151,6 +199,7 @@ fun ScheduleScreen(viewModel: TaskViewModel) {
 @Composable
 fun ScheduleSlotCard(
     slot: ScheduleSlot,
+    onToggleComplete: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -164,7 +213,10 @@ fun ScheduleSlotCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (slot.isCompleted) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surface
+        )
     ) {
         Row(
             modifier = Modifier
@@ -172,6 +224,14 @@ fun ScheduleSlotCard(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Checkbox to mark as accomplished
+            Checkbox(
+                checked = slot.isCompleted,
+                onCheckedChange = { onToggleComplete() }
+            )
+
+            Spacer(modifier = Modifier.width(6.dp))
+
             // Color Bar Indicator
             Box(
                 modifier = Modifier
@@ -198,7 +258,9 @@ fun ScheduleSlotCard(
                 Text(
                     text = slot.title,
                     fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    textDecoration = if (slot.isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                    color = if (slot.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface
                 )
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -230,6 +292,52 @@ fun ScheduleSlotCard(
             }
         }
     }
+}
+
+@Composable
+fun RoutinePresetDialog(
+    onDismiss: () -> Unit,
+    onSelectRoutine: (RoutineType) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Cargar Rutina Predeterminada") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Selecciona una plantilla para aplicar actividades estándar al día seleccionado:",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                RoutineType.entries.forEach { routine ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelectRoutine(routine) },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(routine.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(routine.description, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
